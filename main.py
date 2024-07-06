@@ -1,5 +1,7 @@
 import random
 import os
+import jellyfish
+import pandas as pd
 
 def create_new_files(input_file):
     #znaki i słowa do eliminacji
@@ -58,12 +60,92 @@ def create_new_files(input_file):
             word = ''.join(word)
             file.write(word + "\n")
 
-#def jaro():
-#    return "aaa"
 
-#def jarowinkler():
+def jaro(s1, s2):
+    if (s1 == s2):
+        return 1.0
+ 
+    len1 = len(s1)
+    len2 = len(s2)
+ 
+    if (len1 == 0 or len2 == 0):
+        return 0.0
+ 
+    max_dist = (max(len(s1), len(s2)) // 2 ) - 1
+ 
+    match = 0
+ 
+    hash_s1 = [0] * len(s1)
+    hash_s2 = [0] * len(s2)
+ 
+    for i in range(len1): 
+ 
+        for j in range( max(0, i - max_dist), min(len2, i + max_dist + 1)): 
+             
+            if (s1[i] == s2[j] and hash_s2[j] == 0): 
+                hash_s1[i] = 1
+                hash_s2[j] = 1
+                match += 1
+                break
+         
+    if (match == 0):
+        return 0.0
+ 
+    t = 0 
+    point = 0
+
+    for i in range(len1): 
+        if (hash_s1[i]):
+            while (hash_s2[point] == 0):
+                point += 1
+ 
+            if (s1[i] != s2[point]):
+                point += 1
+                t += 1
+            else:
+                point += 1
+                 
+        t /= 2
+ 
+    return ((match / len1 + match / len2 + (match - t) / match ) / 3.0)
+ 
+def jaro_winkler(s1, s2, alpha): 
+ 
+    jaro_dist = jaro(s1, s2)
+ 
+    if (jaro_dist > 0.7):
+        prefix = 0
+ 
+        for i in range(min(len(s1), len(s2))) :
+            if (s1[i] == s2[i]):
+                prefix += 1
+            else:
+                break
+ 
+        prefix = min(4, prefix)
+ 
+        jaro_dist += (1-alpha) * prefix * (1 - jaro_dist)
+ 
+    return jaro_dist
+
+
+def main(input_file, alpha):
+    create_new_files(input_file)
+    with open('correct50words.txt', 'r', encoding='utf-8', errors='ignore') as file:
+        goodwords = [line.strip() for line in file]
+    with open('50wordswithmistakes.txt', 'r', encoding='utf-8', errors='ignore') as file:
+        badwords = [line.strip() for line in file]
+
+    results = []
+    for n in range(50):
+        distance = jaro_winkler(goodwords[n], badwords[n], alpha)
+        results.append((badwords[n], goodwords[n], distance))
+
+    df = pd.DataFrame(results, columns=['BadWord', 'GoodWord', 'Distance'])
+    df.to_csv('jarowinkler_results.txt', index=False, sep='\t', encoding='utf-8')
 
 
 
 input_file = 'pt.txt'
-create_new_files(input_file)
+alpha = 0.9
+main(input_file, alpha)
